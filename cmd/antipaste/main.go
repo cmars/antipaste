@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"antipaste"
+	"github.com/cmars/antipaste"
 )
 
 func main() {

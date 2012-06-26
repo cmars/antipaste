@@ -52,6 +52,7 @@ func (app *App) Run() error {
 		if protocol, uri, err := parseUri(*getUri); err == nil {
 			// Ok, we found a uri.
 			app.Protocol = protocol
+			app.Handler = protocolHandlers[protocol]
 			app.getTarget = uri
 			return app.runGet()
 		} else {
@@ -60,6 +61,11 @@ func (app *App) Run() error {
 	} else if *putProtocol != "" {
 		// Assume its a paste, we'll check it...
 		app.Protocol = *putProtocol
+		var has bool
+		if app.Handler, has = protocolHandlers[app.Protocol]; !has {
+			return errors.New(fmt.Sprintf("Unknown protocol handler: %s",
+					app.Protocol))
+		}
 		// Parse the rest of the paste command line:
 		// <file> <recipients...>
 		var err error
@@ -126,23 +132,18 @@ func (app *App) runPut() (err error) {
 	go func(){
 		encOut, err := armor.Encode(pipeWriter, "ANTIPASTE", nil)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "ASCII-armor failed: %v\n", err)
+			fmt.Printf("ASCII-armor failed: %v\n", err)
 			return
 		}
 		plainOut, err := app.pgp.encrypt(encOut, app.putRecipients)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Encrypt failed: %v\n", err)
+			fmt.Printf("Encrypt failed: %v\n", err)
 			return
 		}
-		//fmt.Fprintf(os.Stderr, "Writing to output...\n")
 		_, err = io.Copy(plainOut, srcIn)
-		//fmt.Fprintf(os.Stderr, "Plaintext output written\n")
 		err = plainOut.Close()
-		//fmt.Fprintf(os.Stderr, "Plaintext output closed\n")
 		encOut.Close()
-		//fmt.Fprintf(os.Stderr, "Encrypted output closed\n")
 		pipeWriter.Close()
-		//fmt.Fprintf(os.Stderr, "Pipe output closed\n")
 	}()
 	// Protocol handler reads the encrypted content from the pipe
 	pasteUrl, err := app.Handler.WritePaste(pipeReader)
